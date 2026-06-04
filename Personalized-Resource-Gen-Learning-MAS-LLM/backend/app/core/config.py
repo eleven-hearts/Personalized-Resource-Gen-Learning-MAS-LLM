@@ -4,9 +4,9 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     # 讯飞星火大模型配置
-    SPARK_APP_ID: str = ""
-    SPARK_API_KEY: str = ""
-    SPARK_API_SECRET: str = ""
+    SPARK_APP_ID: str = "ee10e7e2"
+    SPARK_API_KEY: str = "dvYBNuTCyCqDOVrYPCUA:lUVaJYlVHSMeMbimBOTE"
+    SPARK_API_SECRET: str = "OTE0OThmNjlkMDk0NGNhOGYwYmNhMDYx"
     SPARK_API_URL: str = "wss://spark-api.xf-yun.com/v3.5/chat"
 
     # 数据库配置
