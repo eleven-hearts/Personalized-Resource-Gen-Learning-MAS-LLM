@@ -42,16 +42,16 @@
           <el-button type="primary" :icon="Plus" @click="startNewChat">
             新建对话
           </el-button>
-          <el-dropdown>
+          <el-dropdown @command="handleUserCommand">
             <span class="user-info">
               <el-avatar :size="32" :icon="UserFilled" />
-              <span>学生用户</span>
+              <span>{{ displayName }}</span>
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item>个人设置</el-dropdown-item>
-                <el-dropdown-item divided>退出登录</el-dropdown-item>
+                <el-dropdown-item command="profile">个人设置</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -65,15 +65,45 @@
 </template>
 
 <script setup>
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Plus, UserFilled, ArrowDown } from '@element-plus/icons-vue'
+import { getCurrentUser } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+
+const displayName = computed(() => {
+  return userStore.userInfo?.full_name || userStore.userInfo?.username || '学生用户'
+})
 
 const startNewChat = () => {
   router.push('/chat')
 }
+
+const loadCurrentUser = async () => {
+  if (!userStore.token || userStore.userInfo) return
+  const userInfo = await getCurrentUser()
+  userStore.setUserInfo(userInfo)
+}
+
+const handleUserCommand = (command) => {
+  if (command === 'profile') {
+    router.push('/profile')
+    return
+  }
+
+  if (command === 'logout') {
+    userStore.logout()
+    router.push('/login')
+  }
+}
+
+onMounted(() => {
+  loadCurrentUser()
+})
 </script>
 
 <style scoped>

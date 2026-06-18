@@ -30,7 +30,13 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" size="large" style="width: 100%" @click="handleLogin">
+              <el-button
+                type="primary"
+                size="large"
+                style="width: 100%"
+                :loading="loginLoading"
+                @click="handleLogin"
+              >
                 登录
               </el-button>
             </el-form-item>
@@ -73,7 +79,13 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" size="large" style="width: 100%" @click="handleRegister">
+              <el-button
+                type="primary"
+                size="large"
+                style="width: 100%"
+                :loading="registerLoading"
+                @click="handleRegister"
+              >
                 注册
               </el-button>
             </el-form-item>
@@ -89,11 +101,16 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Message, Reading } from '@element-plus/icons-vue'
+import { getCurrentUser, login, register } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const activeTab = ref('login')
 const loginFormRef = ref()
 const registerFormRef = ref()
+const loginLoading = ref(false)
+const registerLoading = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -123,16 +140,31 @@ const registerRules = {
 
 const handleLogin = async () => {
   await loginFormRef.value.validate()
-  // TODO: 调用登录API
-  ElMessage.success('登录成功')
-  router.push('/')
+  loginLoading.value = true
+  try {
+    const result = await login(loginForm)
+    userStore.setToken(result.access_token)
+    const userInfo = await getCurrentUser()
+    userStore.setUserInfo(userInfo)
+    ElMessage.success('登录成功')
+    router.push('/dashboard')
+  } finally {
+    loginLoading.value = false
+  }
 }
 
 const handleRegister = async () => {
   await registerFormRef.value.validate()
-  // TODO: 调用注册API
-  ElMessage.success('注册成功')
-  activeTab.value = 'login'
+  registerLoading.value = true
+  try {
+    await register(registerForm)
+    ElMessage.success('注册成功，请登录')
+    loginForm.username = registerForm.username
+    loginForm.password = registerForm.password
+    activeTab.value = 'login'
+  } finally {
+    registerLoading.value = false
+  }
 }
 </script>
 

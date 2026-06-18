@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.pyc
@@ -26,3 +27,15 @@ Thumbs.db
 
 # Logs
 *.log
+=======
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+backend/venv/
+backend/data/
+backend/.env
+
+frontend/node_modules/
+frontend/dist/
+>>>>>>> cdf0f58a489c1acfe553c926f81aed5bb0275c9b

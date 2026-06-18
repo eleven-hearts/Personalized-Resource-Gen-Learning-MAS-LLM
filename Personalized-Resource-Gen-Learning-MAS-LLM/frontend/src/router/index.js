@@ -54,6 +54,18 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - 个性化学习系统` : '个性化学习系统'
+  const token = localStorage.getItem('token')
+
+  if (to.path !== '/login' && !token) {
+    next('/login')
+    return
+  }
+
+  if (to.path === '/login' && token) {
+    next('/dashboard')
+    return
+  }
+
   next()
 })
 

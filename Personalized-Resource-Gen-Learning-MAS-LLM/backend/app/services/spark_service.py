@@ -6,7 +6,6 @@ import hmac
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 import threading
-import time
 from app.core.config import settings
 
 
@@ -19,6 +18,9 @@ class SparkService:
         self.api_secret = settings.SPARK_API_SECRET
         self.host = "spark-api.xf-yun.com"
         self.path = "/v3.5/chat"
+
+    def is_configured(self) -> bool:
+        return all([self.app_id, self.api_key, self.api_secret])
 
     def _generate_url(self):
         """生成鉴权URL"""
@@ -48,7 +50,10 @@ class SparkService:
         :param messages: 消息列表 [{"role": "user", "content": "..."}]
         :return: 模型回复内容
         """
-        result = {"content": "", "completed": False}
+        if not self.is_configured():
+            raise RuntimeError("未配置讯飞星火 API 密钥，请在 backend/.env 中设置 SPARK_APP_ID、SPARK_API_KEY、SPARK_API_SECRET")
+
+        result = {"content": "", "completed": False, "error": ""}
 
         def on_message(ws, message):
             data = json.loads(message)
@@ -68,7 +73,7 @@ class SparkService:
                 ws.close()
 
         def on_error(ws, error):
-            result["content"] = f"连接错误: {str(error)}"
+            result["error"] = f"连接错误: {str(error)}"
             result["completed"] = True
 
         def on_close(ws, close_status_code, close_msg):
@@ -107,6 +112,8 @@ class SparkService:
         )
 
         ws.run_forever()
+        if result["error"]:
+            raise RuntimeError(result["error"])
         return result["content"]
 
     async def chat_stream(self, messages, temperature=0.7, max_tokens=2048):
