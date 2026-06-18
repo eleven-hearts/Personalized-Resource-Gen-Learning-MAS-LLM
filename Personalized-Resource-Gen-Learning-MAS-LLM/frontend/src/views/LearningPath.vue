@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>我的学习路径</span>
-          <el-button type="primary" :icon="Refresh" @click="regeneratePath">
+          <el-button type="primary" :icon="Refresh" :loading="loading" @click="regeneratePath">
             重新规划
           </el-button>
         </div>
@@ -44,9 +44,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { Refresh, Check, Loading, CircleCheck } from '@element-plus/icons-vue'
+import { getCurrentUser } from '@/api/auth'
+import { generateLearningPath, getResources } from '@/api/resource'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
+const loading = ref(false)
 const pathStages = ref([
   {
     title: '阶段一：机器学习基础',
@@ -90,9 +95,48 @@ const pathStages = ref([
   },
 ])
 
-const regeneratePath = () => {
-  // TODO: 调用API重新规划路径
+const stageView = {
+  success: { color: '#67c23a', icon: Check },
+  primary: { color: '#409eff', icon: Loading },
+  info: { color: '#909399', icon: CircleCheck },
 }
+
+const ensureUserInfo = async () => {
+  if (userStore.userInfo) return userStore.userInfo
+  const userInfo = await getCurrentUser()
+  userStore.setUserInfo(userInfo)
+  return userInfo
+}
+
+const normalizeStage = (stage) => {
+  const view = stageView[stage.status] || stageView.info
+  return {
+    ...stage,
+    color: stage.color || view.color,
+    icon: stage.icon || view.icon,
+  }
+}
+
+const regeneratePath = async () => {
+  loading.value = true
+  try {
+    const userInfo = await ensureUserInfo()
+    const resources = await getResources({ user_id: userInfo.id, limit: 10 })
+    const result = await generateLearningPath({
+      course: resources[0]?.metadata?.course || '机器学习基础',
+      goals: userInfo.profile?.learning_goals || [],
+      resources,
+      profile: userInfo.profile || {},
+    })
+    pathStages.value = result.stages.map(normalizeStage)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  regeneratePath()
+})
 </script>
 
 <style scoped>

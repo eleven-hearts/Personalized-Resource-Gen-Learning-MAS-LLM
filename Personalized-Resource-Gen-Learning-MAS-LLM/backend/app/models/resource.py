@@ -21,7 +21,7 @@ class Resource(Base):
     title = Column(String(255), nullable=False)
     resource_type = Column(String(50), nullable=False)
     content = Column(Text)
-    metadata = Column(JSON, default=dict)
+    metadata_json = Column("metadata", JSON, default=dict)
     status = Column(String(50), default="completed")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

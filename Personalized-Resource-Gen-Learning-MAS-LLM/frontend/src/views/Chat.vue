@@ -41,8 +41,12 @@
 <script setup>
 import { ref, nextTick } from 'vue'
 import { UserFilled, ChatLineRound, Promotion } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
+import { sendChatMessage } from '@/api/chat'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
 const messages = ref([
   {
     role: 'assistant',
@@ -79,16 +83,26 @@ const sendMessage = async () => {
   loading.value = true
   scrollToBottom()
 
-  // TODO: 调用后端API进行对话
-  setTimeout(() => {
+  try {
+    const result = await sendChatMessage({ content: userMsg })
+    if (result.profile_update && userStore.userInfo) {
+      userStore.setUserInfo({
+        ...userStore.userInfo,
+        profile: result.profile_update,
+      })
+    }
+
     messages.value.push({
       role: 'assistant',
-      content: '我已收到你的需求，正在为你分析学习画像并生成个性化资源...',
+      content: result.response,
       time: new Date().toLocaleTimeString(),
     })
+  } catch (error) {
+    ElMessage.error('消息发送失败，请稍后重试')
+  } finally {
     loading.value = false
     scrollToBottom()
-  }, 1500)
+  }
 }
 </script>
 

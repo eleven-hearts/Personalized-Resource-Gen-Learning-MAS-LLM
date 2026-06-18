@@ -9,9 +9,16 @@ from app.schemas.resource import ResourceCreate, ResourceUpdate, ResourceRespons
 router = APIRouter()
 
 
+def _resource_model_data(resource_data: dict) -> dict:
+    data = resource_data.copy()
+    if "metadata" in data:
+        data["metadata_json"] = data.pop("metadata")
+    return data
+
+
 @router.post("/", response_model=ResourceResponse)
 def create_resource(resource: ResourceCreate, db: Session = Depends(get_db)):
-    db_resource = Resource(**resource.model_dump())
+    db_resource = Resource(**_resource_model_data(resource.model_dump()))
     db.add(db_resource)
     db.commit()
     db.refresh(db_resource)
@@ -31,7 +38,7 @@ def list_resources(
         query = query.filter(Resource.user_id == user_id)
     if resource_type:
         query = query.filter(Resource.resource_type == resource_type)
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(Resource.created_at.desc(), Resource.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{resource_id}", response_model=ResourceResponse)
@@ -47,7 +54,8 @@ def update_resource(resource_id: int, resource_update: ResourceUpdate, db: Sessi
     resource = db.query(Resource).filter(Resource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="资源不存在")
-    for field, value in resource_update.model_dump(exclude_unset=True).items():
+    update_data = _resource_model_data(resource_update.model_dump(exclude_unset=True))
+    for field, value in update_data.items():
         setattr(resource, field, value)
     db.commit()
     db.refresh(resource)

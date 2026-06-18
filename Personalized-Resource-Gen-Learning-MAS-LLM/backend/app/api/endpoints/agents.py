@@ -1,16 +1,150 @@
-from fastapi import APIRouter, Depends
-from typing import Dict, Any
+from datetime import datetime, timezone
+import json
+from typing import Any, Dict
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.models.resource import Resource
+from app.services.spark_service import spark_service
 
 router = APIRouter()
 
+RESOURCE_TYPE_LABELS = {
+    "document": "讲解文档",
+    "mindmap": "思维导图",
+    "quiz": "练习题",
+    "reading": "拓展阅读",
+    "video": "视频脚本",
+    "code": "代码案例",
+}
+
+
+def _serialize_resource(resource: Resource) -> Dict[str, Any]:
+    return {
+        "id": resource.id,
+        "user_id": resource.user_id,
+        "title": resource.title,
+        "resource_type": resource.resource_type,
+        "content": resource.content,
+        "metadata": resource.metadata_json or {},
+        "status": resource.status,
+        "created_at": resource.created_at,
+        "updated_at": resource.updated_at,
+    }
+
+
+def _extract_json_object(text: str) -> dict:
+    try:
+        if "```json" in text:
+            text = text.split("```json", 1)[1].split("```", 1)[0]
+        elif "```" in text:
+            text = text.split("```", 1)[1].split("```", 1)[0]
+        else:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1:
+                text = text[start : end + 1]
+        return json.loads(text.strip())
+    except Exception:
+        return {}
+
+
+async def _call_spark(messages: list[dict[str, str]], max_tokens: int = 2048) -> str:
+    try:
+        content = await run_in_threadpool(spark_service.chat, messages, 0.7, max_tokens)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if not content:
+        raise HTTPException(status_code=502, detail="大模型返回为空")
+    if content.startswith("请求错误") or content.startswith("连接错误"):
+        raise HTTPException(status_code=502, detail=content)
+    return content
+
+
+async def _generate_resource_content(
+    course: str,
+    topic: str,
+    resource_type: str,
+    requirements: str,
+    profile: dict | None = None,
+) -> str:
+    label = RESOURCE_TYPE_LABELS.get(resource_type, "学习资源")
+    prompt = f"""请生成一份个性化学习资源。
+
+资源类型：{label}
+课程：{course or '未指定'}
+知识点：{topic or '未指定'}
+特殊要求：{requirements or '无'}
+学生画像：{json.dumps(profile or {}, ensure_ascii=False)}
+
+输出要求：
+1. 直接输出 Markdown 内容
+2. 内容必须完整、可直接给学生使用
+3. 根据资源类型组织结构，例如文档要有讲解，练习题要有题目和参考解析，代码案例要有代码
+4. 不要说明“我是模型”，不要输出无关寒暄
+"""
+    return await _call_spark(
+        [
+            {"role": "system", "content": "你是多智能体学习资源生成系统中的资源生成专家。"},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=4096,
+    )
+
 
 @router.post("/generate")
-async def generate_resource(request: Dict[str, Any]):
+async def generate_resource(request: Dict[str, Any], db: Session = Depends(get_db)):
     """
-    触发多智能体协同生成资源
+    触发多智能体协同生成资源。
     """
-    # TODO: 调用多智能体框架进行资源生成
-    return {"message": "资源生成任务已启动", "task_id": "temp_id"}
+    user_id = request.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="缺少 user_id")
+
+    course = (request.get("course") or "").strip()
+    topic = (request.get("topic") or "").strip()
+    requirements = (request.get("requirements") or "").strip()
+    resource_types = request.get("types") or request.get("resource_types") or ["document"]
+    profile = request.get("profile") or {}
+    task_id = uuid4().hex
+
+    resources = []
+    for resource_type in resource_types:
+        label = RESOURCE_TYPE_LABELS.get(resource_type, "学习资源")
+        title_prefix = course or "个性化学习"
+        title_topic = topic or label
+        resource = Resource(
+            user_id=user_id,
+            title=f"{title_prefix} - {title_topic}（{label}）",
+            resource_type=resource_type,
+            content=await _generate_resource_content(course, topic, resource_type, requirements, profile),
+            metadata_json={
+                "course": course,
+                "topic": topic,
+                "requirements": requirements,
+                "description": f"面向{topic or course or '当前学习目标'}的{label}",
+                "task_id": task_id,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            status="completed",
+        )
+        db.add(resource)
+        resources.append(resource)
+
+    db.commit()
+    for resource in resources:
+        db.refresh(resource)
+
+    return {
+        "message": "资源生成完成",
+        "task_id": task_id,
+        "resources": [_serialize_resource(resource) for resource in resources],
+    }
 
 
 @router.get("/status/{task_id}")
@@ -18,8 +152,7 @@ async def get_task_status(task_id: str):
     """
     获取资源生成任务状态
     """
-    # TODO: 查询任务状态
-    return {"task_id": task_id, "status": "pending", "progress": 0}
+    return {"task_id": task_id, "status": "completed", "progress": 100}
 
 
 @router.post("/learning-path")
@@ -27,5 +160,46 @@ async def generate_learning_path(request: Dict[str, Any]):
     """
     生成个性化学习路径
     """
-    # TODO: 调用学习路径规划智能体
-    return {"message": "学习路径生成中"}
+    course = (request.get("course") or "机器学习基础").strip()
+    goals = request.get("goals") or ["理解核心概念", "完成练习巩固", "做一个小项目"]
+    resources = request.get("resources") or []
+    profile = request.get("profile") or {}
+    resource_titles = [
+        resource.get("title", "学习资源")
+        for resource in resources[:10]
+        if isinstance(resource, dict)
+    ]
+    prompt = f"""请为学生生成个性化学习路径。
+
+课程：{course}
+学习目标：{json.dumps(goals, ensure_ascii=False)}
+学生画像：{json.dumps(profile, ensure_ascii=False)}
+可用资源：{json.dumps(resource_titles, ensure_ascii=False)}
+
+请只输出 JSON，对象结构如下：
+{{
+  "stages": [
+    {{
+      "title": "阶段标题",
+      "description": "阶段说明",
+      "duration": "第1周",
+      "status": "success|primary|info",
+      "resources": ["资源名"],
+      "progress": 0
+    }}
+  ]
+}}
+"""
+    response = await _call_spark(
+        [
+            {"role": "system", "content": "你是个性化学习路径规划智能体，只输出可解析 JSON。"},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=2048,
+    )
+    parsed = _extract_json_object(response)
+    stages = parsed.get("stages")
+    if not isinstance(stages, list):
+        raise HTTPException(status_code=502, detail="大模型学习路径返回格式无法解析")
+
+    return {"message": "学习路径已生成", "stages": stages}

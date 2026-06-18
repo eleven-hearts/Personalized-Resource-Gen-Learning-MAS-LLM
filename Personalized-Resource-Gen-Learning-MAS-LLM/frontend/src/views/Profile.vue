@@ -5,22 +5,22 @@
         <el-card>
           <div class="profile-header">
             <el-avatar :size="80" :icon="UserFilled" />
-            <h3>张三</h3>
-            <p>计算机科学与技术 | 大三</p>
+            <h3>{{ displayName }}</h3>
+            <p>{{ userInfo?.major || '未填写专业' }} | {{ userInfo?.grade || '未填写年级' }}</p>
           </div>
           <el-divider />
           <div class="profile-info">
             <div class="info-item">
               <span class="label">专业</span>
-              <span class="value">计算机科学与技术</span>
+              <span class="value">{{ userInfo?.major || '未填写' }}</span>
             </div>
             <div class="info-item">
               <span class="label">年级</span>
-              <span class="value">大三</span>
+              <span class="value">{{ userInfo?.grade || '未填写' }}</span>
             </div>
             <div class="info-item">
               <span class="label">邮箱</span>
-              <span class="value">zhangsan@example.com</span>
+              <span class="value">{{ userInfo?.email || '未填写' }}</span>
             </div>
           </div>
         </el-card>
@@ -70,16 +70,41 @@
 </template>
 
 <script setup>
-import { UserFilled, Brain, View, Warning, Timer, Star } from '@element-plus/icons-vue'
+import { computed, onMounted } from 'vue'
+import { UserFilled } from '@element-plus/icons-vue'
+import { getCurrentUser } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 
-const profileDimensions = [
-  { name: '知识基础', value: '扎实的数学和编程基础，熟悉Python', score: 85, color: '#409eff', icon: 'Brain' },
-  { name: '认知风格', value: '视觉型学习者，偏好图表和代码示例', score: 70, color: '#67c23a', icon: 'View' },
-  { name: '易错点偏好', value: '数学推导、概率统计概念', score: 60, color: '#e6a23c', icon: 'Warning' },
-  { name: '学习节奏', value: '中等偏快，适合密集型学习', score: 75, color: '#f56c6c', icon: 'Timer' },
-  { name: '兴趣方向', value: '深度学习、计算机视觉', score: 90, color: '#722ed1', icon: 'Star' },
-  { name: '学习目标', value: '掌握机器学习核心算法，完成2个项目', score: 80, color: '#13c2c2', icon: 'Brain' },
-]
+const userStore = useUserStore()
+
+const userInfo = computed(() => userStore.userInfo)
+const profile = computed(() => userStore.userInfo?.profile || {})
+const displayName = computed(() => {
+  return userInfo.value?.full_name || userInfo.value?.username || '学生用户'
+})
+
+const formatList = (value, fallback) => {
+  if (Array.isArray(value) && value.length > 0) return value.join('；')
+  return value || fallback
+}
+
+const profileDimensions = computed(() => [
+  { name: '知识基础', value: profile.value.knowledge_base || '尚未形成明确判断，可通过智能对话补充。', score: 65, color: '#409eff', icon: 'Reading' },
+  { name: '认知风格', value: profile.value.cognitive_style || '偏好结合讲解、示例和练习进行学习', score: 70, color: '#67c23a', icon: 'View' },
+  { name: '易错点偏好', value: formatList(profile.value.error_prone_points, '暂无明显易错点记录'), score: 55, color: '#e6a23c', icon: 'Warning' },
+  { name: '学习节奏', value: profile.value.learning_pace || '中等', score: 75, color: '#f56c6c', icon: 'Timer' },
+  { name: '兴趣方向', value: profile.value.interest_direction || '尚未记录兴趣方向', score: 70, color: '#722ed1', icon: 'Star' },
+  { name: '学习目标', value: formatList(profile.value.learning_goals, '尚未记录学习目标'), score: 70, color: '#13c2c2', icon: 'Reading' },
+])
+
+const loadCurrentUser = async () => {
+  const latestUserInfo = await getCurrentUser()
+  userStore.setUserInfo(latestUserInfo)
+}
+
+onMounted(() => {
+  loadCurrentUser()
+})
 </script>
 
 <style scoped>

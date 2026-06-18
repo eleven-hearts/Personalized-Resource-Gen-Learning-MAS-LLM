@@ -15,3 +15,11 @@ export const getResource = (id) => {
 export const deleteResource = (id) => {
   return request.delete(`/resources/${id}`)
 }
+
+export const generateResources = (data) => {
+  return request.post('/agents/generate', data)
+}
+
+export const generateLearningPath = (data) => {
+  return request.post('/agents/learning-path', data)
+}

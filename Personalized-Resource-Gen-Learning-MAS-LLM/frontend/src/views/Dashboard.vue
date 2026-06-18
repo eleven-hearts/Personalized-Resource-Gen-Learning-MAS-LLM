@@ -7,7 +7,7 @@
             <el-icon size="32"><Document /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">12</div>
+            <div class="stat-value">{{ stats.resourceCount }}</div>
             <div class="stat-label">已生成资源</div>
           </div>
         </el-card>
@@ -18,7 +18,7 @@
             <el-icon size="32"><Timer /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">36h</div>
+            <div class="stat-value">{{ stats.studyHours }}h</div>
             <div class="stat-label">学习时长</div>
           </div>
         </el-card>
@@ -29,7 +29,7 @@
             <el-icon size="32"><TrendCharts /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">85%</div>
+            <div class="stat-value">{{ stats.mastery }}%</div>
             <div class="stat-label">知识掌握度</div>
           </div>
         </el-card>
@@ -40,7 +40,7 @@
             <el-icon size="32"><Star /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">4.5</div>
+            <div class="stat-value">{{ stats.score }}</div>
             <div class="stat-label">学习评分</div>
           </div>
         </el-card>
@@ -75,11 +75,12 @@
             </div>
           </template>
           <div class="recent-resources">
-            <div class="resource-item" v-for="i in 5" :key="i">
+            <div class="resource-item" v-for="resource in recentResources" :key="resource.id">
               <el-icon><Document /></el-icon>
-              <span>机器学习基础 - 第{{ i }}章笔记</span>
-              <el-tag size="small" type="success">文档</el-tag>
+              <span>{{ resource.title }}</span>
+              <el-tag size="small" type="success">{{ resource.type }}</el-tag>
             </div>
+            <el-empty v-if="recentResources.length === 0" description="暂无资源" />
           </div>
         </el-card>
       </el-col>
@@ -88,7 +89,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { getCurrentUser } from '@/api/auth'
+import { getResources } from '@/api/resource'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const stats = reactive({
+  resourceCount: 0,
+  studyHours: 0,
+  mastery: 0,
+  score: '0.0',
+})
+const recentResources = ref([])
 
 const progressList = ref([
   { name: '机器学习基础', percent: 75, color: '#409eff' },
@@ -96,6 +109,39 @@ const progressList = ref([
   { name: '自然语言处理', percent: 30, color: '#e6a23c' },
   { name: '计算机视觉', percent: 20, color: '#f56c6c' },
 ])
+
+const typeLabels = {
+  document: '文档',
+  mindmap: '导图',
+  quiz: '题库',
+  reading: '阅读',
+  video: '视频',
+  code: '代码',
+}
+
+const ensureUserInfo = async () => {
+  if (userStore.userInfo) return userStore.userInfo
+  const userInfo = await getCurrentUser()
+  userStore.setUserInfo(userInfo)
+  return userInfo
+}
+
+const loadDashboard = async () => {
+  const userInfo = await ensureUserInfo()
+  const resources = await getResources({ user_id: userInfo.id, limit: 100 })
+  stats.resourceCount = resources.length
+  stats.studyHours = Math.max(resources.length * 2, 0)
+  stats.mastery = resources.length > 0 ? 75 : 0
+  stats.score = resources.length > 0 ? '4.5' : '0.0'
+  recentResources.value = resources.slice(0, 5).map((resource) => ({
+    ...resource,
+    type: typeLabels[resource.resource_type] || '资源',
+  }))
+}
+
+onMounted(() => {
+  loadDashboard()
+})
 </script>
 
 <style scoped>
