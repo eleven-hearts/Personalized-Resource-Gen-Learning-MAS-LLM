@@ -34,6 +34,15 @@
             上传PDF生成路径
           </el-button>
         </el-upload>
+        <el-popconfirm
+          v-if="currentPath"
+          title="确定删除当前学习路径及其所有节点？"
+          @confirm="handleDeletePath(currentPath.id)"
+        >
+          <template #reference>
+            <el-button type="danger" :icon="Delete" class="glass-btn">删除路径</el-button>
+          </template>
+        </el-popconfirm>
       </div>
     </div>
 
@@ -44,7 +53,17 @@
         class="glass-card path-card-item"
         @click="selectPath(p)"
       >
-        <div class="path-card-title">{{ p.title }}</div>
+        <div class="path-card-header">
+          <div class="path-card-title">{{ p.title }}</div>
+          <el-button
+            text
+            type="danger"
+            :icon="Delete"
+            size="small"
+            @click.stop="handleDeletePath(p.id)"
+            class="delete-path-btn"
+          />
+        </div>
         <div class="path-card-meta">
           <el-tag size="small" :type="p.source_type === 'pdf' ? 'warning' : 'primary'">
             {{ p.source_type === 'pdf' ? 'PDF导入' : 'AI生成' }}
@@ -206,11 +225,11 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Upload, Lock, MoreFilled, CircleCheckFilled, Timer, EditPen,
+  Upload, Lock, MoreFilled, CircleCheckFilled, Timer, EditPen, Delete,
 } from '@element-plus/icons-vue'
-import { uploadPDF, getLearningPaths, getLearningPath } from '@/api/learning'
+import { uploadPDF, getLearningPaths, getLearningPath, deleteLearningPath } from '@/api/learning'
 import QuizDialog from './QuizDialog.vue'
 
 const uploadLoading = ref(false)
@@ -316,6 +335,25 @@ const onPathSelect = (pathId) => {
   if (found) {
     currentPath.value = found
     selectedPathId.value = pathId
+  }
+}
+
+const handleDeletePath = async (pathId) => {
+  try {
+    await ElMessageBox.confirm('确定删除该学习路径及其所有节点吗？', '确认删除')
+  } catch {
+    return
+  }
+  try {
+    await deleteLearningPath(pathId)
+    ElMessage.success('学习路径已删除')
+    if (currentPath.value?.id === pathId) {
+      currentPath.value = null
+      selectedPathId.value = null
+    }
+    await loadAllPaths()
+  } catch (err) {
+    ElMessage.error('删除失败，请重试')
   }
 }
 
@@ -435,6 +473,21 @@ onMounted(() => {
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--text-primary);
+}
+
+.path-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.path-card-header .path-card-title {
+  margin-bottom: 0;
+}
+
+.delete-path-btn {
+  flex-shrink: 0;
 }
 
 .path-card-meta {

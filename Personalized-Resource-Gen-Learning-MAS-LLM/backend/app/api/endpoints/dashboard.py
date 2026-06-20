@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -109,3 +109,22 @@ async def get_wrong_answers(
         "total_wrong": len(wrongs),
         "groups": list(grouped.values()),
     }
+
+
+@router.delete("/wrong-answers/{wrong_id}")
+def delete_wrong_answer(
+    wrong_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """删除单道错题"""
+    wrong = (
+        db.query(WrongAnswer)
+        .filter(WrongAnswer.id == wrong_id, WrongAnswer.user_id == current_user.id)
+        .first()
+    )
+    if not wrong:
+        raise HTTPException(status_code=404, detail="错题不存在")
+    db.delete(wrong)
+    db.commit()
+    return {"message": "错题已消灭"}

@@ -37,10 +37,20 @@
             v-for="(item, idx) in group.items"
             :key="item.id"
             class="wrong-item"
+            :class="{ killing: killingIds.has(item.id) }"
           >
             <div class="wrong-question">
               <el-tag type="danger" size="small">错题 {{ idx + 1 }}</el-tag>
               <span>{{ item.question }}</span>
+              <el-button
+                :icon="Close"
+                circle
+                size="small"
+                type="danger"
+                :loading="killingIds.has(item.id)"
+                @click="handleKill(item.id)"
+                class="kill-btn"
+              />
             </div>
             <div class="wrong-detail">
               <div class="wrong-row">
@@ -73,8 +83,9 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Loading } from '@element-plus/icons-vue'
-import { getWrongAnswers } from '@/api/dashboard'
+import { Loading, Close } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getWrongAnswers, deleteWrongAnswer } from '@/api/dashboard'
 
 const props = defineProps({ modelValue: Boolean })
 const emit = defineEmits(['update:modelValue'])
@@ -88,10 +99,43 @@ const loading = ref(false)
 const groups = ref([])
 const totalWrong = ref(0)
 const activeGroups = ref([])
+const killingIds = ref(/** @type {Set<number>} */ (new Set()))
 
 const extractKey = (opt) => {
   const match = String(opt).match(/^([A-Da-d])/)
   return match ? match[1].toUpperCase() : ''
+}
+
+const handleKill = async (id) => {
+  killingIds.value = new Set(killingIds.value).add(id)
+  try {
+    await deleteWrongAnswer(id)
+    // 等待消失动画播放
+    await new Promise((r) => setTimeout(r, 500))
+    // 移除该错题
+    removeWrongItem(id)
+    ElMessage.success('错题已消灭')
+  } catch {
+    ElMessage.error('消灭失败')
+  } finally {
+    const next = new Set(killingIds.value)
+    next.delete(id)
+    killingIds.value = next
+  }
+}
+
+const removeWrongItem = (id) => {
+  const newGroups = []
+  let total = 0
+  for (const g of groups.value) {
+    const items = g.items.filter((i) => i.id !== id)
+    if (items.length > 0) {
+      newGroups.push({ ...g, count: items.length, items })
+      total += items.length
+    }
+  }
+  groups.value = newGroups
+  totalWrong.value = total
 }
 
 const loadWrongAnswers = async () => {
@@ -136,4 +180,40 @@ watch(() => props.modelValue, (val) => {
 .opt-wrong { background: #fef0f0; color: #f56c6c; text-decoration: line-through; }
 .wrong-explanation { font-size: 13px; color: #606266; padding: 8px; background: #f5f7fa; border-radius: 4px; line-height: 1.6; }
 .explain-label { color: #409eff; font-weight: 500; }
+
+/* 消灭按钮 */
+.kill-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.wrong-item:hover .kill-btn {
+  opacity: 1;
+}
+
+/* 消灭动画 */
+.wrong-item.killing {
+  animation: killAnim 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes killAnim {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+    background: transparent;
+  }
+  15% {
+    filter: brightness(1.5);
+    background: rgba(245, 108, 108, 0.15);
+    box-shadow: 0 0 20px rgba(245, 108, 108, 0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85) translateY(-10px);
+    filter: brightness(0.5);
+  }
+}
 </style>

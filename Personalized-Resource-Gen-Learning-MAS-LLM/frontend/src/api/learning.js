@@ -48,3 +48,15 @@ export const generateProfile = () => {
 export const addResourceToNode = (nodeId, resourceId) => {
   return request.post(`/quiz/node/${nodeId}/add-resource?resource_id=${resourceId}`)
 }
+
+/** 从学习资源生成新学习路径 */
+export const generatePathFromResource = (resourceId) => {
+  return request.post(`/agents/generate-path-from-resource/${resourceId}`, {}, {
+    timeout: 300000, // 5分钟超时
+  })
+}
+
+/** 删除学习路径 */
+export const deleteLearningPath = (pathId) => {
+  return request.delete(`/quiz/path/${pathId}`)
+}

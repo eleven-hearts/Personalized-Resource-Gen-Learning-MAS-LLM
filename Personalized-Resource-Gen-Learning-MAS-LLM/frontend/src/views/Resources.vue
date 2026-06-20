@@ -40,8 +40,8 @@
             <el-button text type="primary" :icon="Download" @click="downloadResource(resource)">
               下载
             </el-button>
-            <el-button text type="warning" :icon="Plus" @click="openAddToPath(resource)">
-              加到路径
+            <el-button text type="warning" :icon="Connection" @click="generatePathFromThis(resource)">
+              生成路径
             </el-button>
             <el-button text type="danger" :icon="Delete" @click="handleDelete(resource)">
               删除
@@ -90,26 +90,6 @@
       <div class="resource-content" v-html="selectedResourceHtml"></div>
     </el-dialog>
 
-    <el-dialog v-model="showAddToPathDialog" title="添加到学习路径" width="500px">
-      <el-form label-width="80px">
-        <el-form-item label="选择路径">
-          <el-select v-model="addToPathForm.pathId" placeholder="选择学习路径" @change="onPathChange" style="width: 100%">
-            <el-option v-for="p in availablePaths" :key="p.id" :label="p.title || '未命名路径'" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="选择节点">
-          <el-select v-model="addToPathForm.nodeId" placeholder="选择路径节点" :disabled="!addToPathForm.pathId" style="width: 100%">
-            <el-option v-for="n in availableNodes" :key="n.id" :label="`${n.order_index + 1}. ${n.title}`" :value="n.id" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showAddToPathDialog = false">取消</el-button>
-        <el-button type="primary" :loading="addingToPath" @click="confirmAddToPath" :disabled="!addToPathForm.nodeId">
-          确认添加
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -120,7 +100,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import { getCurrentUser } from '@/api/auth'
 import { deleteResource, generateResources, getResources } from '@/api/resource'
-import { addResourceToNode, getLearningPaths } from '@/api/learning'
+import { generatePathFromResource } from '@/api/learning'
 import { useUserStore } from '@/stores/user'
 import { useLiquidGlass } from '@/composables/useLiquidGlass'
 
@@ -271,51 +251,24 @@ const handleDelete = async (resource) => {
   }
 }
 
-const showAddToPathDialog = ref(false)
-const addingToPath = ref(false)
-const selectedResourceForPath = ref(null)
-const availablePaths = ref([])
-const availableNodes = ref([])
-const addToPathForm = reactive({ pathId: null, nodeId: null })
-
-const openAddToPath = async (resource) => {
-  selectedResourceForPath.value = resource
-  addToPathForm.pathId = null
-  addToPathForm.nodeId = null
-  availableNodes.value = []
+const generatePathFromThis = async (resource) => {
   try {
-    const paths = await getLearningPaths()
-    availablePaths.value = Array.isArray(paths) ? paths : (paths.paths || [])
+    await ElMessageBox.confirm(
+      `将根据「${resource.title}」的内容，由 AI 自动生成一条全新的学习路径。`,
+      '生成学习路径',
+      { confirmButtonText: '开始生成', cancelButtonText: '取消' }
+    )
   } catch {
-    ElMessage.error('获取学习路径失败')
-    return
+    return // 用户取消
   }
-  if (availablePaths.value.length === 0) {
-    ElMessage.warning('暂无学习路径，请先上传PDF或生成学习路径')
-    return
-  }
-  showAddToPathDialog.value = true
-}
-
-const onPathChange = async (pathId) => {
-  addToPathForm.nodeId = null
-  availableNodes.value = []
-  const path = availablePaths.value.find(p => p.id === pathId)
-  if (path?.nodes) {
-    availableNodes.value = path.nodes
-  }
-}
-
-const confirmAddToPath = async () => {
-  addingToPath.value = true
+  generating.value = true // 复用 generating 状态
   try {
-    await addResourceToNode(addToPathForm.nodeId, selectedResourceForPath.value.id)
-    ElMessage.success('资源已添加到学习路径')
-    showAddToPathDialog.value = false
-  } catch {
-    ElMessage.error('添加失败，请重试')
+    const result = await generatePathFromResource(resource.id)
+    ElMessage.success(`学习路径「${result.path_title}」已生成，请前往学习路径页面查看`)
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || '路径生成失败，请重试')
   } finally {
-    addingToPath.value = false
+    generating.value = false
   }
 }
 

@@ -236,3 +236,80 @@ async def generate_learning_path(
     db.commit()
 
     return {"message": "学习路径已生成", "stages": stages, "path_id": learning_path.id}
+
+
+@router.post("/generate-path-from-resource/{resource_id}")
+async def generate_path_from_resource(
+    resource_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """将学习资源的 Markdown 内容发送给 AI，直接生成一条全新学习路径"""
+    resource = db.query(Resource).filter(Resource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+    if resource.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问该资源")
+
+    content = resource.content or ""
+    title = resource.title or "学习资源"
+
+    prompt = f"""请根据以下学习资料内容，为学生生成一条个性化学习路径。
+
+资料标题：{title}
+资料内容：
+{content[:6000]}
+
+请只输出 JSON，对象结构如下：
+{{
+  "stages": [
+    {{
+      "title": "阶段标题",
+      "description": "阶段说明（100字以内）",
+      "duration": "第1周",
+      "resources": ["推荐资源名"]
+    }}
+  ]
+}}
+
+要求：
+1. 生成 5-8 个学习阶段，由浅入深
+2. 每个阶段描述要具体、可执行
+3. 阶段之间要有逻辑递进关系
+4. 结合资料内容映射到知识点划分
+"""
+    response = await _call_spark(
+        [
+            {"role": "system", "content": "你是个性化学习路径规划智能体，根据学习资料划分学习阶段，只输出可解析 JSON。"},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=4096,
+    )
+    parsed = _extract_json_object(response)
+    stages = parsed.get("stages")
+    if not isinstance(stages, list):
+        raise HTTPException(status_code=502, detail="大模型学习路径返回格式无法解析")
+
+    learning_path = LearningPath(
+        user_id=current_user.id,
+        title=f"从「{title}」生成的学习路径",
+        source_type="ai",
+        source_name=title,
+    )
+    db.add(learning_path)
+    db.flush()
+
+    for i, stage in enumerate(stages):
+        node = PathNode(
+            path_id=learning_path.id,
+            title=stage.get("title", "") or stage.get("name", ""),
+            description=stage.get("description", "") or stage.get("content", ""),
+            order_index=i,
+            status="active" if i == 0 else "locked",
+            resources=stage.get("resources", []) or [],
+        )
+        db.add(node)
+
+    db.commit()
+
+    return {"message": "学习路径已生成", "stages": stages, "path_id": learning_path.id, "path_title": learning_path.title}

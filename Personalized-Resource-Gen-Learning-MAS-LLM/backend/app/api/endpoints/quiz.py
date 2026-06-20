@@ -624,3 +624,25 @@ def add_resource_to_node(
         db.commit()
         return {"message": "资源已添加到节点", "resources": current_resources}
     return {"message": "资源已存在于节点中", "resources": current_resources}
+
+
+@router.delete("/path/{path_id}")
+def delete_learning_path(
+    path_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """删除学习路径及其所有节点"""
+    path = (
+        db.query(LearningPath)
+        .filter(LearningPath.id == path_id, LearningPath.user_id == current_user.id)
+        .first()
+    )
+    if not path:
+        raise HTTPException(status_code=404, detail="学习路径不存在")
+
+    # 级联删除所有节点
+    db.query(PathNode).filter(PathNode.path_id == path_id).delete()
+    db.delete(path)
+    db.commit()
+    return {"message": "学习路径已删除"}
