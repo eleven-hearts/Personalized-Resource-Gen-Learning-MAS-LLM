@@ -40,6 +40,12 @@
             <el-button text type="primary" :icon="Download" @click="downloadResource(resource)">
               下载
             </el-button>
+            <el-button text type="warning" :icon="Plus" @click="openAddToPath(resource)">
+              加到路径
+            </el-button>
+            <el-button text type="danger" :icon="Delete" @click="handleDelete(resource)">
+              删除
+            </el-button>
           </div>
         </div>
       </el-col>
@@ -83,16 +89,38 @@
     <el-dialog v-model="showDetailDialog" :title="selectedResource?.title" width="760px" class="glass-dialog">
       <div class="resource-content" v-html="selectedResourceHtml"></div>
     </el-dialog>
+
+    <el-dialog v-model="showAddToPathDialog" title="添加到学习路径" width="500px">
+      <el-form label-width="80px">
+        <el-form-item label="选择路径">
+          <el-select v-model="addToPathForm.pathId" placeholder="选择学习路径" @change="onPathChange" style="width: 100%">
+            <el-option v-for="p in availablePaths" :key="p.id" :label="p.title || '未命名路径'" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="选择节点">
+          <el-select v-model="addToPathForm.nodeId" placeholder="选择路径节点" :disabled="!addToPathForm.pathId" style="width: 100%">
+            <el-option v-for="n in availableNodes" :key="n.id" :label="`${n.order_index + 1}. ${n.title}`" :value="n.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddToPathDialog = false">取消</el-button>
+        <el-button type="primary" :loading="addingToPath" @click="confirmAddToPath" :disabled="!addToPathForm.nodeId">
+          确认添加
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Search, Plus, View, Download, Document, Connection, EditPen, Reading, Monitor } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Search, Plus, View, Download, Document, Connection, EditPen, Reading, Monitor, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import { getCurrentUser } from '@/api/auth'
-import { generateResources, getResources } from '@/api/resource'
+import { deleteResource, generateResources, getResources } from '@/api/resource'
+import { addResourceToNode, getLearningPaths } from '@/api/learning'
 import { useUserStore } from '@/stores/user'
 import { useLiquidGlass } from '@/composables/useLiquidGlass'
 
@@ -178,6 +206,8 @@ const fetchResources = async () => {
   try {
     const userInfo = await ensureUserInfo()
     resourceList.value = await getResources({ user_id: userInfo.id })
+  } catch (err) {
+    ElMessage.error('获取资源列表失败')
   } finally {
     loading.value = false
   }
@@ -203,11 +233,13 @@ const generateResource = async () => {
       requirements: generateForm.requirements,
       profile: userInfo.profile || {},
     })
-    await fetchResources()
     showGenerateDialog.value = false
     ElMessage.success('资源生成完成')
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || err?.message || '资源生成失败')
   } finally {
     generating.value = false
+    await fetchResources()
   }
 }
 
@@ -224,6 +256,67 @@ const downloadResource = (resource) => {
   link.download = `${resource.title}.md`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+const handleDelete = async (resource) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该资源吗？', '确认删除')
+    await deleteResource(resource.id)
+    ElMessage.success('已删除')
+    await fetchResources()
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error('删除失败，请重试')
+    }
+  }
+}
+
+const showAddToPathDialog = ref(false)
+const addingToPath = ref(false)
+const selectedResourceForPath = ref(null)
+const availablePaths = ref([])
+const availableNodes = ref([])
+const addToPathForm = reactive({ pathId: null, nodeId: null })
+
+const openAddToPath = async (resource) => {
+  selectedResourceForPath.value = resource
+  addToPathForm.pathId = null
+  addToPathForm.nodeId = null
+  availableNodes.value = []
+  try {
+    const paths = await getLearningPaths()
+    availablePaths.value = Array.isArray(paths) ? paths : (paths.paths || [])
+  } catch {
+    ElMessage.error('获取学习路径失败')
+    return
+  }
+  if (availablePaths.value.length === 0) {
+    ElMessage.warning('暂无学习路径，请先上传PDF或生成学习路径')
+    return
+  }
+  showAddToPathDialog.value = true
+}
+
+const onPathChange = async (pathId) => {
+  addToPathForm.nodeId = null
+  availableNodes.value = []
+  const path = availablePaths.value.find(p => p.id === pathId)
+  if (path?.nodes) {
+    availableNodes.value = path.nodes
+  }
+}
+
+const confirmAddToPath = async () => {
+  addingToPath.value = true
+  try {
+    await addResourceToNode(addToPathForm.nodeId, selectedResourceForPath.value.id)
+    ElMessage.success('资源已添加到学习路径')
+    showAddToPathDialog.value = false
+  } catch {
+    ElMessage.error('添加失败，请重试')
+  } finally {
+    addingToPath.value = false
+  }
 }
 
 onMounted(() => {
@@ -313,17 +406,38 @@ h4 {
   color: var(--text-secondary);
 }
 
+/* 重写卡片 overflow 防止按钮被裁剪 */
+.resource-card {
+  overflow: visible !important;
+}
+
+.resource-card .glass-card-header,
+.resource-card .resource-icon,
+.resource-card h4,
+.resource-card .resource-desc,
+.resource-card .resource-meta {
+  position: relative;
+  z-index: 1;
+}
+
 .resource-actions {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  padding-top: 12px;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-top: 1px solid rgba(8, 8, 8, 0.06);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.resource-actions :deep(.el-button) {
+  font-size: 12px;
+  padding: 4px 8px;
 }
 
 .resource-content {
   line-height: 1.7;
-  color: var(--text-primary);
+  color: #070707;
 }
 
 .resource-content :deep(h1),
@@ -338,7 +452,7 @@ h4 {
 }
 
 .resource-content :deep(pre) {
-  background: rgba(0,0,0,0.2);
+  background: rgba(8, 7, 7, 0.2);
   border-radius: 6px;
   overflow-x: auto;
   padding: 12px;

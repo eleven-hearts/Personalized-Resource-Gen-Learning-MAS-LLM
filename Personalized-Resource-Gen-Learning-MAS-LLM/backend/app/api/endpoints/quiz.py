@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.learning import LearningPath, PathNode, QuizQuestion, WrongAnswer
+from app.models.resource import Resource
 from app.services.spark_service import spark_service
 
 router = APIRouter()
@@ -596,3 +597,30 @@ async def generate_learning_profile(
         "message": "学习画像生成成功",
         "profile": profile,
     }
+
+
+# ===================== 资源到节点 =====================
+
+@router.post("/node/{node_id}/add-resource")
+def add_resource_to_node(
+    node_id: int,
+    resource_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """将资源添加到学习路径节点"""
+    node = db.query(PathNode).filter(PathNode.id == node_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="节点不存在")
+
+    resource = db.query(Resource).filter(Resource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+
+    current_resources = node.resources or []
+    if resource.title not in current_resources:
+        current_resources.append(resource.title)
+        node.resources = current_resources
+        db.commit()
+        return {"message": "资源已添加到节点", "resources": current_resources}
+    return {"message": "资源已存在于节点中", "resources": current_resources}

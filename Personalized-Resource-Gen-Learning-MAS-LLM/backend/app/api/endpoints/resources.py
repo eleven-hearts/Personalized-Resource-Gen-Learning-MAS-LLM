@@ -4,7 +4,9 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.resource import Resource
+from app.models.user import User
 from app.schemas.resource import ResourceCreate, ResourceUpdate, ResourceResponse
 from app.agents.coordinator import coordinator
 
@@ -132,10 +134,12 @@ def update_resource(resource_id: int, resource_update: ResourceUpdate, db: Sessi
 
 
 @router.delete("/{resource_id}")
-def delete_resource(resource_id: int, db: Session = Depends(get_db)):
+def delete_resource(resource_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     resource = db.query(Resource).filter(Resource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="资源不存在")
+    if resource.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权删除该资源")
     db.delete(resource)
     db.commit()
     return {"message": "资源已删除"}

@@ -8,7 +8,10 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models.learning import LearningPath, PathNode
 from app.models.resource import Resource
+from app.models.user import User
 from app.services.spark_service import spark_service
 
 router = APIRouter()
@@ -156,14 +159,18 @@ async def get_task_status(task_id: str):
 
 
 @router.post("/learning-path")
-async def generate_learning_path(request: Dict[str, Any]):
+async def generate_learning_path(
+    request: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     生成个性化学习路径。
 
     作用：
     1. 接收课程名称、学习目标、学生画像
     2. 调用大模型生成学习路径
-    3. 返回阶段化学习计划
+    3. 持久化到数据库并返回阶段化学习计划
     """
     course = (request.get("course") or "机器学习基础").strip()
     goals = request.get("goals") or ["理解核心概念", "完成练习巩固", "做一个小项目"]
@@ -207,4 +214,25 @@ async def generate_learning_path(request: Dict[str, Any]):
     if not isinstance(stages, list):
         raise HTTPException(status_code=502, detail="大模型学习路径返回格式无法解析")
 
-    return {"message": "学习路径已生成", "stages": stages}
+    learning_path = LearningPath(
+        user_id=current_user.id,
+        title=request.get("course") or request.get("topic") or "AI生成路径",
+        source_type="ai",
+    )
+    db.add(learning_path)
+    db.flush()
+
+    for i, stage in enumerate(stages):
+        node = PathNode(
+            path_id=learning_path.id,
+            title=stage.get("title", "") or stage.get("name", ""),
+            description=stage.get("description", "") or stage.get("content", ""),
+            order_index=i,
+            status="active" if i == 0 else "locked",
+            resources=stage.get("resources", []) or [],
+        )
+        db.add(node)
+
+    db.commit()
+
+    return {"message": "学习路径已生成", "stages": stages, "path_id": learning_path.id}

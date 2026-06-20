@@ -43,3 +43,8 @@ export const generateProfile = () => {
     timeout: 120000,
   })
 }
+
+/** 将资源添加到学习路径节点 */
+export const addResourceToNode = (nodeId, resourceId) => {
+  return request.post(`/quiz/node/${nodeId}/add-resource?resource_id=${resourceId}`)
+}

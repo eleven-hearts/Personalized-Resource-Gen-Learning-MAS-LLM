@@ -3,8 +3,23 @@
     <!-- 顶部操作栏 -->
     <div class="path-toolbar glass-card">
       <div class="toolbar-left">
-        <h3 v-if="currentPath">{{ currentPath.title }}</h3>
-        <h3 v-else>我的学习路径</h3>
+        <div class="path-switcher" v-if="paths.length > 0">
+          <el-select
+            v-model="selectedPathId"
+            placeholder="选择学习路径"
+            @change="onPathSelect"
+            class="glass-select"
+            size="large"
+          >
+            <el-option
+              v-for="p in paths"
+              :key="p.id"
+              :label="p.title || '未命名路径'"
+              :value="p.id"
+            />
+          </el-select>
+        </div>
+        <h3>我的学习路径</h3>
       </div>
       <div class="toolbar-right">
         <el-upload
@@ -95,6 +110,19 @@
               :status="node.progress === 100 ? 'success' : ''"
               :stroke-width="6"
             />
+          </div>
+
+          <!-- 节点资源标签 — 直接显示在卡片上 -->
+          <div v-if="node.resources && node.resources.length > 0" class="node-resources-tags">
+            <el-tag
+              v-for="(res, ri) in node.resources"
+              :key="ri"
+              size="small"
+              type="success"
+              class="resource-tag"
+            >
+              {{ res }}
+            </el-tag>
           </div>
 
           <!-- 灯塔 -->
@@ -188,6 +216,7 @@ import QuizDialog from './QuizDialog.vue'
 const uploadLoading = ref(false)
 const paths = ref([])
 const currentPath = ref(null)
+const selectedPathId = ref(null)
 const expandedNodeId = ref(null)
 
 const quizVisible = ref(false)
@@ -255,6 +284,7 @@ const handleFileChange = async (file) => {
     await loadAllPaths()
     if (data.path) {
       currentPath.value = data.path
+      selectedPathId.value = data.path.id
     }
   } catch (e) {
     ElMessage.error('PDF上传或解析失败，请重试')
@@ -269,6 +299,7 @@ const loadAllPaths = async () => {
     paths.value = Array.isArray(data) ? data : (data.paths || [])
     if (paths.value.length > 0 && !currentPath.value) {
       currentPath.value = paths.value[0]
+      selectedPathId.value = paths.value[0].id
     }
   } catch (e) {
     // 无路径时不报错
@@ -277,6 +308,15 @@ const loadAllPaths = async () => {
 
 const selectPath = (path) => {
   currentPath.value = path
+  selectedPathId.value = path.id
+}
+
+const onPathSelect = (pathId) => {
+  const found = paths.value.find((p) => p.id === pathId)
+  if (found) {
+    currentPath.value = found
+    selectedPathId.value = pathId
+  }
 }
 
 onMounted(() => {
@@ -321,10 +361,51 @@ onMounted(() => {
   padding: 16px 20px;
 }
 
+.toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .toolbar-left h3 {
   margin: 0;
-  font-size: 18px;
-  color: var(--text-primary);
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.path-switcher {
+  min-width: 240px;
+}
+
+.glass-select {
+  width: 100%;
+}
+
+:deep(.glass-select .el-input__wrapper) {
+  background: rgba(25, 34, 52, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 10px !important;
+  transition: all 0.3s;
+}
+
+:deep(.glass-select .el-input__wrapper:hover) {
+  border-color: rgba(96, 165, 250, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(96, 165, 250, 0.15) !important;
+}
+
+:deep(.glass-select .el-input__wrapper.is-focus) {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 1px var(--primary) inset, 0 4px 16px rgba(96, 165, 250, 0.2) !important;
+}
+
+:deep(.glass-select .el-input__inner) {
+  color: var(--text-primary) !important;
+}
+
+:deep(.glass-select .el-input__suffix .el-icon) {
+  color: var(--text-secondary) !important;
 }
 
 .toolbar-right {
@@ -481,6 +562,20 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 节点资源标签 */
+.node-resources-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.resource-tag {
+  margin: 0;
 }
 
 /* Lighthouse */

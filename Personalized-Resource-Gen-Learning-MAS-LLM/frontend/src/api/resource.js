@@ -17,7 +17,9 @@ export const deleteResource = (id) => {
 }
 
 export const generateResources = (data) => {
-  return request.post('/agents/generate', data)
+  return request.post('/agents/generate', data, {
+    timeout: 300000, // 5分钟超时，AI生成需要时间
+  })
 }
 
 export const generateLearningPath = (data) => {
