@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-container">
+  <div class="chat-container glass-card" ref="chatCardRef">
     <div class="chat-messages" ref="messagesRef">
       <div
         v-for="(msg, index) in messages"
@@ -9,16 +9,16 @@
         <el-avatar
           :size="36"
           :icon="msg.role === 'user' ? UserFilled : ChatLineRound"
-          :style="{ background: msg.role === 'user' ? '#409eff' : '#67c23a' }"
+          :style="{ background: msg.role === 'user' ? 'var(--primary)' : '#22c55e' }"
         />
-        <div class="message-content">
+        <div class="message-content" :class="msg.role === 'user' ? 'user-bubble' : 'ai-bubble'">
           <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
           <div class="message-time">{{ msg.time }}</div>
         </div>
       </div>
       <div v-if="loading" class="message ai-message">
-        <el-avatar :size="36" :icon="ChatLineRound" style="background: #67c23a" />
-        <div class="message-content">
+        <el-avatar :size="36" :icon="ChatLineRound" style="background: #22c55e" />
+        <div class="message-content ai-bubble">
           <el-skeleton :rows="2" animated />
         </div>
       </div>
@@ -30,8 +30,9 @@
         :rows="3"
         placeholder="请输入你的学习需求或问题，系统将自动构建你的学习画像..."
         @keydown.enter.prevent="sendMessage"
+        class="glass-textarea"
       />
-      <el-button type="primary" :icon="Promotion" :loading="loading" @click="sendMessage">
+      <el-button type="primary" :icon="Promotion" :loading="loading" @click="sendMessage" class="send-btn">
         发送
       </el-button>
     </div>
@@ -45,6 +46,7 @@ import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { sendChatMessage } from '@/api/chat'
 import { useUserStore } from '@/stores/user'
+import { useLiquidGlass } from '@/composables/useLiquidGlass'
 
 const userStore = useUserStore()
 const messages = ref([
@@ -57,6 +59,10 @@ const messages = ref([
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesRef = ref()
+
+/* Canvas 液态玻璃高光 */
+const chatCardRef = ref(null)
+useLiquidGlass(chatCardRef, { size: 350, alpha: 0.12, edgeGlow: true })
 
 const renderMarkdown = (text) => {
   return marked.parse(text)
@@ -91,7 +97,6 @@ const sendMessage = async () => {
         profile: result.profile_update,
       })
     }
-
     messages.value.push({
       role: 'assistant',
       content: result.response,
@@ -111,8 +116,18 @@ const sendMessage = async () => {
   height: calc(100vh - 140px);
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.glass-card {
+  background: rgba(25,34,52,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--card-radius);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  position: relative;
 }
 
 .chat-messages {
@@ -134,16 +149,25 @@ const sendMessage = async () => {
 .message-content {
   max-width: 70%;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: #f5f7fa;
+  border-radius: 14px;
 }
 
-.user-message .message-content {
-  background: #e6f7ff;
+.user-bubble {
+  background: rgba(96,165,250,0.18);
+  border: 1px solid rgba(96,165,250,0.25);
+  border-radius: 14px 4px 14px 14px;
+}
+
+.ai-bubble {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px 14px 14px 14px;
 }
 
 .message-text {
   line-height: 1.6;
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
 .message-text :deep(p) {
@@ -155,8 +179,8 @@ const sendMessage = async () => {
 }
 
 .message-time {
-  font-size: 12px;
-  color: #909399;
+  font-size: 11px;
+  color: var(--text-secondary);
   margin-top: 4px;
   text-align: right;
 }
@@ -165,14 +189,32 @@ const sendMessage = async () => {
   display: flex;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.15);
 }
 
-.chat-input .el-textarea {
-  flex: 1;
+.chat-input :deep(.el-textarea__inner) {
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  resize: none;
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
-.chat-input .el-button {
+.chat-input :deep(.el-textarea__inner:focus) {
+  border-color: var(--primary);
+  background: rgba(255,255,255,0.08);
+}
+
+.chat-input :deep(.el-textarea__inner::placeholder) {
+  color: var(--text-secondary);
+}
+
+.send-btn {
   align-self: flex-end;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light)) !important;
+  border: none !important;
 }
 </style>

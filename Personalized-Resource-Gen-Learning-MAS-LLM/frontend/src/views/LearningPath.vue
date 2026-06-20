@@ -1,7 +1,7 @@
 <template>
   <div class="learning-path-page">
     <!-- 顶部操作栏 -->
-    <div class="path-toolbar">
+    <div class="path-toolbar glass-card">
       <div class="toolbar-left">
         <h3 v-if="currentPath">{{ currentPath.title }}</h3>
         <h3 v-else>我的学习路径</h3>
@@ -15,16 +15,20 @@
           :on-change="handleFileChange"
           :show-file-list="false"
         >
-          <el-button type="primary" :icon="Upload" :loading="uploadLoading">
+          <el-button type="primary" :icon="Upload" :loading="uploadLoading" class="glass-btn">
             上传PDF生成路径
           </el-button>
         </el-upload>
       </div>
     </div>
 
-    <!-- 路径历史列表（多条路径时显示） -->
+    <!-- 路径历史列表 -->
     <div v-if="paths.length > 1 && !currentPath" class="path-list">
-      <el-card v-for="p in paths" :key="p.id" class="path-card-item" shadow="hover" @click="selectPath(p)">
+      <div
+        v-for="p in paths" :key="p.id"
+        class="glass-card path-card-item"
+        @click="selectPath(p)"
+      >
         <div class="path-card-title">{{ p.title }}</div>
         <div class="path-card-meta">
           <el-tag size="small" :type="p.source_type === 'pdf' ? 'warning' : 'primary'">
@@ -33,7 +37,7 @@
           <span v-if="p.source_name">{{ p.source_name }}</span>
           <span>共 {{ p.nodes?.length || 0 }} 个阶段</span>
         </div>
-      </el-card>
+      </div>
     </div>
 
     <!-- 当前路径的节点时间线 -->
@@ -63,10 +67,9 @@
         </div>
 
         <!-- 节点卡片 -->
-        <el-card
-          class="node-card"
+        <div
+          class="glass-card node-card"
           :class="{ expanded: expandedNodeId === node.id }"
-          shadow="hover"
           @click="toggleNode(node)"
         >
           <div class="node-header">
@@ -94,31 +97,44 @@
             />
           </div>
 
+          <!-- 灯塔 -->
+          <div v-if="node.status === 'completed'" class="lighthouse-area">
+            <svg class="lighthouse" viewBox="0 0 80 100" width="50" height="62">
+              <g class="light-beams">
+                <line x1="40" y1="14" x2="8" y2="40" stroke="var(--lighthouse-gold)" stroke-width="2" opacity="0.5"/>
+                <line x1="40" y1="14" x2="72" y2="40" stroke="var(--lighthouse-gold)" stroke-width="2" opacity="0.5"/>
+                <line x1="40" y1="14" x2="0" y2="55" stroke="var(--lighthouse-gold)" stroke-width="1.5" opacity="0.25"/>
+                <line x1="40" y1="14" x2="80" y2="55" stroke="var(--lighthouse-gold)" stroke-width="1.5" opacity="0.25"/>
+              </g>
+              <rect x="30" y="14" width="20" height="50" rx="2" fill="var(--primary-light)" opacity="0.7"/>
+              <rect x="28" y="14" width="24" height="8" rx="1" fill="var(--primary)"/>
+              <rect x="30" y="30" width="20" height="4" fill="white" opacity="0.5"/>
+              <rect x="30" y="42" width="20" height="4" fill="white" opacity="0.5"/>
+              <rect x="30" y="54" width="20" height="4" fill="white" opacity="0.5"/>
+              <circle cx="40" cy="14" r="6" fill="var(--lighthouse-gold)" opacity="0.9"/>
+              <circle cx="40" cy="14" r="3" fill="#fff" opacity="0.8"/>
+              <rect x="26" y="64" width="28" height="6" rx="3" fill="var(--primary)" opacity="0.6"/>
+              <ellipse cx="40" cy="72" rx="18" ry="3" fill="rgba(96,165,250,0.1)"/>
+            </svg>
+            <span class="lighthouse-text">此阶段已完成</span>
+          </div>
+
           <!-- 展开详情 -->
           <div v-if="expandedNodeId === node.id" class="node-detail">
             <div class="detail-desc">{{ node.description }}</div>
-
-            <!-- 推荐资源 -->
             <div v-if="node.resources && node.resources.length > 0" class="detail-resources">
               <span class="detail-label">推荐资源：</span>
-              <el-tag
-                v-for="(res, ri) in node.resources"
-                :key="ri"
-                size="small"
-                type="success"
-                class="resource-tag"
-              >
+              <el-tag v-for="(res, ri) in node.resources" :key="ri" size="small" type="success" class="resource-tag">
                 {{ res }}
               </el-tag>
             </div>
-
-            <!-- 操作按钮 -->
             <div class="detail-actions">
               <el-button
                 v-if="node.status !== 'locked'"
                 type="primary"
                 :icon="EditPen"
                 @click.stop="openQuiz(node)"
+                class="glass-btn"
               >
                 {{ node.quiz_passed ? '重新测验' : '开始测验' }}
               </el-button>
@@ -127,7 +143,7 @@
               </el-button>
             </div>
           </div>
-        </el-card>
+        </div>
       </div>
     </div>
 
@@ -174,12 +190,10 @@ const paths = ref([])
 const currentPath = ref(null)
 const expandedNodeId = ref(null)
 
-// Quiz dialog
 const quizVisible = ref(false)
 const quizNodeId = ref(null)
 const quizNodeTitle = ref('')
 
-// 进度条动画
 const nodeProgressMap = reactive({})
 
 const getDisplayProgress = (node) => {
@@ -195,7 +209,7 @@ const animateProgress = (nodeId, fromVal, toVal, duration = 600) => {
   const step = (now) => {
     const elapsed = now - start
     const p = Math.min(elapsed / duration, 1)
-    const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
+    const eased = 1 - Math.pow(1 - p, 3)
     nodeProgressMap[nodeId] = Math.round(fromVal + (toVal - fromVal) * eased)
     if (p < 1) {
       requestAnimationFrame(step)
@@ -222,12 +236,10 @@ const openQuiz = (node) => {
   quizVisible.value = true
 }
 
-const onQuizPassed = async (nodeId) => {
-  // 刷新路径数据
+const onQuizPassed = async () => {
   if (currentPath.value) {
     const data = await getLearningPath(currentPath.value.id)
     currentPath.value = data.path || data
-    // 更新 paths 中对应路径的数据
     const idx = paths.value.findIndex((p) => p.id === currentPath.value.id)
     if (idx >= 0) {
       paths.value[idx] = currentPath.value
@@ -240,9 +252,7 @@ const handleFileChange = async (file) => {
   try {
     const data = await uploadPDF(file.raw)
     ElMessage.success('PDF解析完成，学习路径已生成')
-    // 重新加载路径列表
     await loadAllPaths()
-    // 自动选中新生成的路径
     if (data.path) {
       currentPath.value = data.path
     }
@@ -276,59 +286,94 @@ onMounted(() => {
 
 <style scoped>
 .learning-path-page {
-  max-width: 800px;
+  max-width: 840px;
   margin: 0 auto;
 }
+
+.glass-card {
+  background: rgba(25,34,52,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--card-radius);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.glass-btn {
+  background: rgba(96,165,250,0.15) !important;
+  border: 1px solid rgba(96,165,250,0.25) !important;
+  color: var(--primary-light) !important;
+  box-shadow: none !important;
+  transition: all 0.3s;
+}
+
+.glass-btn:hover {
+  background: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: 0 0 16px rgba(96,165,250,0.2) !important;
+}
+
 .path-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
   padding: 16px 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
+
 .toolbar-left h3 {
   margin: 0;
   font-size: 18px;
-  color: #303133;
+  color: var(--text-primary);
 }
+
 .toolbar-right {
   display: flex;
   gap: 12px;
 }
+
 .path-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-bottom: 20px;
 }
+
 .path-card-item {
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  padding: 16px 20px;
+  transition: transform 0.2s;
 }
+
+.path-card-item:hover {
+  transform: translateY(-1px);
+}
+
 .path-card-title {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 8px;
-  color: #303133;
+  color: var(--text-primary);
 }
+
 .path-card-meta {
   display: flex;
   align-items: center;
   gap: 12px;
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
 }
+
 .path-timeline {
   position: relative;
   padding-left: 40px;
 }
+
 .timeline-node {
   position: relative;
   margin-bottom: 4px;
 }
+
 .node-connector {
   position: absolute;
   left: 19px;
@@ -336,18 +381,22 @@ onMounted(() => {
   bottom: 60%;
   width: 2px;
 }
+
 .connector-line {
   width: 100%;
   height: 100%;
-  background: #409eff;
+  background: var(--primary);
   transition: background 0.3s;
 }
+
 .line-locked {
-  background: #dcdfe6;
+  background: #475569;
 }
+
 .line-active {
-  background: #409eff;
+  background: var(--primary);
 }
+
 .node-dot {
   position: absolute;
   left: -40px;
@@ -361,75 +410,124 @@ onMounted(() => {
   color: #fff;
   z-index: 2;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
+
 .node-dot:hover {
   transform: scale(1.15);
 }
+
 .node-locked .node-dot {
-  background: #c0c4cc;
+  background: #475569;
 }
+
 .node-active .node-dot {
-  background: #409eff;
+  background: var(--primary);
+  box-shadow: 0 0 16px rgba(96,165,250,0.4);
 }
+
 .node-completed .node-dot {
-  background: #67c23a;
+  background: #22c55e;
+  box-shadow: 0 0 16px rgba(34,197,94,0.4);
 }
+
 .node-card {
   cursor: pointer;
-  margin-bottom: 0;
-  border-left: 4px solid transparent;
-  transition: border-color 0.3s;
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
 }
+
 .node-active .node-card {
-  border-left-color: #409eff;
+  border-left: 4px solid var(--primary) !important;
 }
+
 .node-completed .node-card {
-  border-left-color: #67c23a;
+  border-left: 4px solid #22c55e !important;
 }
+
 .node-locked .node-card {
-  border-left-color: #dcdfe6;
-  opacity: 0.7;
+  border-left: 4px solid #475569 !important;
+  opacity: 0.5;
 }
+
 .node-header {
-  padding: 4px 0;
+  padding: 2px 0;
 }
+
 .node-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
+
 .node-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
+
 .node-meta {
   display: flex;
   align-items: center;
   gap: 16px;
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 10px;
 }
+
 .node-duration {
   display: flex;
   align-items: center;
   gap: 4px;
 }
+
+/* Lighthouse */
+.lighthouse-area {
+  text-align: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(96,165,250,0.15);
+}
+
+.lighthouse {
+  display: inline-block;
+  filter: drop-shadow(0 0 8px rgba(245,166,35,0.3));
+}
+
+.light-beams {
+  animation: beam-rotate 8s linear infinite;
+  transform-origin: 40px 14px;
+}
+
+@keyframes beam-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.lighthouse-text {
+  display: block;
+  font-size: 12px;
+  color: var(--lighthouse-gold);
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
 .node-detail {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px dashed #e4e7ed;
+  border-top: 1px dashed rgba(255,255,255,0.08);
   cursor: default;
 }
+
 .detail-desc {
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 12px;
 }
+
 .detail-resources {
   display: flex;
   align-items: center;
@@ -437,13 +535,16 @@ onMounted(() => {
   gap: 6px;
   margin-bottom: 16px;
 }
+
 .detail-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
 }
+
 .resource-tag {
   margin: 0;
 }
+
 .detail-actions {
   text-align: right;
 }

@@ -53,7 +53,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - 个性化学习系统` : '个性化学习系统'
+  document.title = to.meta.title ? `${to.meta.title} - 远航智学` : '远航智学'
   const token = localStorage.getItem('token')
 
   if (to.path !== '/login' && !token) {

@@ -2,15 +2,18 @@
   <div class="resources-page">
     <el-row :gutter="20" class="mb-20">
       <el-col :span="16">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索学习资源..."
-          :prefix-icon="Search"
-          clearable
-        />
+        <div class="glass-input-wrapper">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索学习资源..."
+            :prefix-icon="Search"
+            clearable
+            class="glass-search"
+          />
+        </div>
       </el-col>
       <el-col :span="8">
-        <el-button type="primary" :icon="Plus" @click="showGenerateDialog = true">
+        <el-button type="primary" :icon="Plus" @click="showGenerateDialog = true" class="glass-btn">
           生成新资源
         </el-button>
       </el-col>
@@ -18,7 +21,7 @@
 
     <el-row :gutter="20" v-loading="loading">
       <el-col :span="6" v-for="resource in filteredResourceList" :key="resource.id">
-        <el-card class="resource-card" shadow="hover">
+        <div class="glass-card resource-card" :ref="(el: any) => setCardRef(resource.id, el)">
           <div class="resource-icon">
             <el-icon size="40" :color="resource.color">
               <component :is="resource.icon" />
@@ -38,13 +41,12 @@
               下载
             </el-button>
           </div>
-        </el-card>
+        </div>
       </el-col>
     </el-row>
     <el-empty v-if="!loading && filteredResourceList.length === 0" description="暂无学习资源" />
 
-    <!-- 生成资源对话框 -->
-    <el-dialog v-model="showGenerateDialog" title="生成个性化学习资源" width="600px">
+    <el-dialog v-model="showGenerateDialog" title="生成个性化学习资源" width="600px" class="glass-dialog">
       <el-form :model="generateForm" label-width="100px">
         <el-form-item label="课程">
           <el-input v-model="generateForm.course" placeholder="如：机器学习基础" />
@@ -78,7 +80,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showDetailDialog" :title="selectedResource?.title" width="760px">
+    <el-dialog v-model="showDetailDialog" :title="selectedResource?.title" width="760px" class="glass-dialog">
       <div class="resource-content" v-html="selectedResourceHtml"></div>
     </el-dialog>
   </div>
@@ -92,6 +94,7 @@ import { marked } from 'marked'
 import { getCurrentUser } from '@/api/auth'
 import { generateResources, getResources } from '@/api/resource'
 import { useUserStore } from '@/stores/user'
+import { useLiquidGlass } from '@/composables/useLiquidGlass'
 
 const userStore = useUserStore()
 const searchQuery = ref('')
@@ -110,12 +113,20 @@ const generateForm = reactive({
 })
 
 const typeConfig = {
-  document: { label: '文档', tagType: 'primary', icon: 'Document', color: '#409eff' },
-  mindmap: { label: '思维导图', tagType: 'success', icon: 'Connection', color: '#67c23a' },
+  document: { label: '文档', tagType: 'primary', icon: 'Document', color: '#3b82c6' },
+  mindmap: { label: '思维导图', tagType: 'success', icon: 'Connection', color: '#22c55e' },
   quiz: { label: '题库', tagType: 'warning', icon: 'EditPen', color: '#e6a23c' },
-  reading: { label: '阅读', tagType: 'info', icon: 'Reading', color: '#909399' },
-  video: { label: '视频', tagType: 'primary', icon: 'Monitor', color: '#13c2c2' },
-  code: { label: '代码', tagType: 'danger', icon: 'Monitor', color: '#f56c6c' },
+  reading: { label: '阅读', tagType: 'info', icon: 'Reading', color: '#64748b' },
+  video: { label: '视频', tagType: 'primary', icon: 'Monitor', color: '#14b8a6' },
+  code: { label: '代码', tagType: 'danger', icon: 'Monitor', color: '#ef4444' },
+}
+
+/* Canvas 液态玻璃 — 只给前4个资源卡片挂高光 */
+const cardRefs = {}
+const setCardRef = (id, el) => {
+  if (el && !cardRefs[id]) {
+    cardRefs[id] = el
+  }
 }
 
 const ensureUserInfo = async () => {
@@ -181,7 +192,6 @@ const generateResource = async () => {
     ElMessage.warning('请至少选择一种资源类型')
     return
   }
-
   generating.value = true
   try {
     const userInfo = await ensureUserInfo()
@@ -226,20 +236,69 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.resource-card {
+.glass-card {
+  background: rgba(25,34,52,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--card-radius);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 20px;
   text-align: center;
   margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-btn {
+  background: rgba(96,165,250,0.15) !important;
+  border: 1px solid rgba(96,165,250,0.25) !important;
+  color: var(--primary-light) !important;
+  box-shadow: none !important;
+  transition: all 0.3s;
+}
+
+.glass-btn:hover {
+  background: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: 0 0 16px rgba(96,165,250,0.2) !important;
+}
+
+.glass-input-wrapper :deep(.el-input__wrapper) {
+  background: rgba(255,255,255,0.06);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: none !important;
+}
+
+.glass-input-wrapper :deep(.el-input__inner) {
+  color: var(--text-primary);
+}
+
+.glass-input-wrapper :deep(.el-input__wrapper:hover) {
+  border-color: rgba(96,165,250,0.4);
+}
+
+.glass-input-wrapper :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--primary);
+  background: rgba(255,255,255,0.1);
 }
 
 .resource-icon {
   margin-bottom: 12px;
 }
 
+h4 {
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
 .resource-desc {
-  color: #606266;
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
   margin: 8px 0;
-  min-height: 40px;
+  min-height: 36px;
+  line-height: 1.5;
 }
 
 .resource-meta {
@@ -251,19 +310,20 @@ onMounted(() => {
 
 .resource-date {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .resource-actions {
   display: flex;
   justify-content: center;
   gap: 8px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid rgba(255,255,255,0.06);
   padding-top: 12px;
 }
 
 .resource-content {
   line-height: 1.7;
+  color: var(--text-primary);
 }
 
 .resource-content :deep(h1),
@@ -278,7 +338,7 @@ onMounted(() => {
 }
 
 .resource-content :deep(pre) {
-  background: #f5f7fa;
+  background: rgba(0,0,0,0.2);
   border-radius: 6px;
   overflow-x: auto;
   padding: 12px;

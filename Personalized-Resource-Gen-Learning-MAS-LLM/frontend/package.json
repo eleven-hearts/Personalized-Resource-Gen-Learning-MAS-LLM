@@ -1,7 +1,7 @@
 {
-  "name": "personalized-learning-frontend",
+  "name": "yuanhang-zhixue",
   "version": "1.0.0",
-  "description": "基于大模型的个性化资源生成与学习多智能体系统 - 前端",
+  "description": "远航智学 - 个性化学习多智能体系统",
   "type": "module",
   "scripts": {
     "dev": "vite",
