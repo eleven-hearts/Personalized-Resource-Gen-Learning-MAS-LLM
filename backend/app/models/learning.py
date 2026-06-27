@@ -50,6 +50,18 @@ class QuizQuestion(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class DailyCheckIn(Base):
+    """每日打卡记录"""
+    __tablename__ = "daily_check_ins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    date = Column(String(10), nullable=False)  # "2026-06-20"
+    correct_count = Column(Integer, default=0)  # 当日答对题数
+    total_count = Column(Integer, default=0)  # 当日总做题数
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class WrongAnswer(Base):
     """错题本 — 持久化用户答错的题目"""
     __tablename__ = "wrong_answers"

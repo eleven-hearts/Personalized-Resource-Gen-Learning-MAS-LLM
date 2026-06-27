@@ -13,3 +13,13 @@ export const getWrongAnswers = () => {
 export const deleteWrongAnswer = (id) => {
   return request.delete(`/dashboard/wrong-answers/${id}`)
 }
+
+/** 每日打卡 */
+export const dailyCheckIn = () => {
+  return request.post('/dashboard/check-in')
+}
+
+/** 获取打卡日历 */
+export const getCheckInCalendar = (days = 90) => {
+  return request.get('/dashboard/check-in-calendar', { params: { days } })
+}

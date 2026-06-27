@@ -96,6 +96,48 @@
         </div>
       </el-col>
     </el-row>
+
+    <!-- 每日打卡砖墙 -->
+    <el-row :gutter="20" class="mt-20">
+      <el-col :span="24">
+        <div class="glass-card checkin-card" ref="checkinCardRef">
+          <div class="glass-card-header">
+            <span>每日打卡</span>
+            <div class="checkin-stats">
+              <span class="streak-badge" v-if="checkinData.streak > 0">
+                连续 {{ checkinData.streak }} 天
+              </span>
+              <span class="active-days">活跃 {{ checkinData.active_days }}/{{ checkinData.total_days }} 天</span>
+            </div>
+          </div>
+          <div class="brick-wall">
+            <div
+              v-for="day in checkinData.calendar"
+              :key="day.date"
+              class="brick"
+              :class="day.level"
+              :title="`${day.date} | 答对: ${day.correct_count} / ${day.total_count}`"
+            >
+              <span class="brick-month" v-if="showMonthLabel(day)">
+                {{ day.date.slice(5, 7) }}月
+              </span>
+            </div>
+          </div>
+          <div class="brick-legend">
+            <span class="legend-item">
+              <span class="brick none"></span>未打卡
+            </span>
+            <span class="legend-item">
+              <span class="brick light"></span>0-5题
+            </span>
+            <span class="legend-item">
+              <span class="brick dark"></span>6+题
+            </span>
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+
     <WrongAnswerDialog v-model="wrongVisible" />
   </div>
 </template>
@@ -103,7 +145,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { EditPen, CircleCheck, CircleClose, TrendCharts, ArrowRight } from '@element-plus/icons-vue'
-import { getDashboardStats } from '@/api/dashboard'
+import { getDashboardStats, dailyCheckIn, getCheckInCalendar } from '@/api/dashboard'
 import WrongAnswerDialog from './WrongAnswerDialog.vue'
 import { useLiquidGlass } from '@/composables/useLiquidGlass'
 
@@ -119,6 +161,24 @@ const stats = reactive({
 
 const pathProgress = ref([])
 const wrongVisible = ref(false)
+
+/* 打卡日历 */
+const checkinData = reactive({
+  calendar: [],
+  active_days: 0,
+  streak: 0,
+  total_days: 90,
+})
+
+const checkinCardRef = ref(null)
+useLiquidGlass(checkinCardRef, { size: 400, alpha: 0.12 })
+
+const showMonthLabel = (day) => {
+  const idx = checkinData.calendar.indexOf(day)
+  if (idx === 0) return true
+  const prev = checkinData.calendar[idx - 1]
+  return day.date.slice(5, 7) !== prev.date.slice(5, 7)
+}
 
 /* Canvas 液态玻璃高光 — 统计卡片 + 两个大卡片 */
 const statCard1 = ref(null)
@@ -164,8 +224,22 @@ const loadDashboard = async () => {
   }
 }
 
+const loadCheckin = async () => {
+  try {
+    await dailyCheckIn()
+    const data = await getCheckInCalendar(90)
+    checkinData.calendar = data.calendar || []
+    checkinData.active_days = data.active_days || 0
+    checkinData.streak = data.streak || 0
+    checkinData.total_days = data.total_days || 90
+  } catch (e) {
+    // 打卡失败不影响页面
+  }
+}
+
 onMounted(() => {
   loadDashboard()
+  loadCheckin()
 })
 </script>
 
@@ -282,5 +356,107 @@ onMounted(() => {
 
 .overview-item.clickable:hover {
   background: rgba(239,68,68,0.1);
+}
+
+/* 打卡砖墙 */
+.checkin-card {
+  overflow: visible !important;
+}
+
+.checkin-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.streak-badge {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.active-days {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.brick-wall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 0;
+}
+
+.brick {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: default;
+}
+
+.brick:hover {
+  transform: scale(1.6);
+  z-index: 10;
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+
+.brick.none {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brick.light {
+  background: rgba(74, 222, 128, 0.5);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  box-shadow: 0 0 4px rgba(74, 222, 128, 0.15);
+}
+
+.brick.dark {
+  background: rgba(22, 163, 74, 0.85);
+  border: 1px solid rgba(22, 163, 74, 0.6);
+  box-shadow: 0 0 6px rgba(22, 163, 74, 0.25);
+}
+
+.brick-month {
+  position: absolute;
+  top: -16px;
+  left: 0;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.brick-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-item .brick {
+  width: 12px;
+  height: 12px;
+}
+
+.legend-item .brick:hover {
+  transform: none;
+  box-shadow: none;
 }
 </style>
